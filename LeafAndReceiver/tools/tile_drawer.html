@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>E290 Band Tile Drawer — 64×22</title>
+<style>
+  :root { --ink:#1a1a1a; --paper:#f4f2ec; --grid:#cfc9bd; --accent:#3a6ea5; }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; padding:24px; background:var(--paper); color:var(--ink);
+    font:14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  h1 { font-size:16px; margin:0 0 4px; }
+  p.sub { margin:0 0 16px; color:#6b6459; }
+  .wrap { max-width:1000px; }
+  .toolbar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:10px 0; }
+  .sep { width:1px; align-self:stretch; background:var(--grid); margin:0 4px; }
+  .lbl { color:#6b6459; font-size:12px; margin-right:2px; }
+  button {
+    font:inherit; padding:6px 10px; border:1px solid var(--ink); background:#fff;
+    color:var(--ink); cursor:pointer; border-radius:4px;
+  }
+  button:hover { background:var(--ink); color:var(--paper); }
+  button:disabled { opacity:.35; cursor:default; }
+  button:disabled:hover { background:#fff; color:var(--ink); }
+  button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .canvas-box { overflow:auto; border:1px solid var(--grid); background:#fff; padding:10px; }
+  canvas { display:block; image-rendering:pixelated; cursor:crosshair; touch-action:none; }
+  .preview-label { margin:16px 0 6px; color:#6b6459; }
+  .count { margin-left:auto; color:#6b6459; }
+  textarea {
+    width:100%; height:150px; margin-top:8px; font:12px/1.4 ui-monospace, monospace;
+    border:1px solid var(--grid); border-radius:4px; padding:10px; background:#fff; resize:vertical;
+  }
+  .hint { color:#6b6459; font-size:12px; margin-top:6px; }
+  label.chk { display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>E290 band tile — 64 × 22</h1>
+  <p class="sub">One portrait band = 128 wide × ~49 tall. This draws the top 128 × 44 of it at 2×2 blocks. Exports the 176-byte <code>TILE[]</code> for the leaf.</p>
+
+  <div class="toolbar">
+    <span class="lbl">tool</span>
+    <button class="tool active" data-tool="draw">Pencil</button>
+    <button class="tool" data-tool="erase">Eraser</button>
+    <button class="tool" data-tool="line">Line</button>
+    <button class="tool" data-tool="rect">Box</button>
+    <button class="tool" data-tool="rectf">Box •</button>
+    <button class="tool" data-tool="ellipse">Oval</button>
+    <button class="tool" data-tool="fill">Fill</button>
+    <div class="sep"></div>
+    <span class="lbl">brush</span>
+    <button class="brush active" data-size="1">1</button>
+    <button class="brush" data-size="2">2</button>
+    <button class="brush" data-size="3">3</button>
+  </div>
+
+  <div class="toolbar">
+    <button id="undo" disabled>Undo</button>
+    <button id="redo" disabled>Redo</button>
+    <div class="sep"></div>
+    <button id="clear">Clear</button>
+    <button id="invert">Invert</button>
+    <label class="chk"><input type="checkbox" id="grid" checked> grid</label>
+    <span class="count" id="count">0 pixels set</span>
+  </div>
+
+  <div class="canvas-box">
+    <canvas id="c"></canvas>
+  </div>
+
+  <div class="preview-label">Actual size on the panel (128 × 44 px drawing area):</div>
+  <div class="canvas-box" style="display:inline-block">
+    <canvas id="prev"></canvas>
+  </div>
+
+  <div class="toolbar" style="margin-top:20px">
+    <button id="copy">Copy TILE[] to clipboard</button>
+    <span class="count" id="bytes"></span>
+  </div>
+  <textarea id="out" readonly spellcheck="false"></textarea>
+  <div class="hint">Paste this over the <code>TILE[]</code> block in leaf.ino, and set <code>MODE = MODE_TILE</code>. &nbsp; Shortcuts: <code>Ctrl/Cmd+Z</code> undo, <code>Ctrl/Cmd+Shift+Z</code> redo.</div>
+</div>
+
+<script>
+  const W = 64, H = 22;          // grid cells (must match the leaf)
+  const CELL = 9;                // on-screen pixels per cell in the editor
+  const grid = new Uint8Array(W * H);
+
+  const c = document.getElementById('c');
+  const ctx = c.getContext('2d');
+  c.width = W * CELL; c.height = H * CELL;
+
+  const prev = document.getElementById('prev');
+  const pctx = prev.getContext('2d');
+  prev.width = W * 2; prev.height = H * 2;   // 128 x 44 true size
+
+  let tool = 'draw';
+  let brush = 1;
+  let showGrid = true;
+
+  // interaction state
+  let painting = false;
+  let before = null;             // grid snapshot at pointer-down (for undo + shape preview)
+  let start = null;              // start cell for shapes
+  let last = null;               // last cell for freehand interpolation
+
+  // undo / redo
+  const undoStack = [], redoStack = [];
+  const HIST_MAX = 80;
+
+  const idx = (x, y) => y * W + x;
+  const inBounds = (x, y) => x >= 0 && x < W && y >= 0 && y < H;
+  function setPixel(x, y, v) { if (inBounds(x, y)) grid[idx(x, y)] = v; }
+
+  // ---- primitives ----------------------------------------------------------
+  function stamp(x, y, v, size) {
+    const o = Math.floor((size - 1) / 2);
+    for (let dy = 0; dy < size; dy++)
+      for (let dx = 0; dx < size; dx++)
+        setPixel(x - o + dx, y - o + dy, v);
+  }
+  function bres(x0, y0, x1, y1, fn) {
+    let dx = Math.abs(x1 - x0), dy = Math.abs(y1 - y0);
+    let sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1, err = dx - dy;
+    while (true) {
+      fn(x0, y0);
+      if (x0 === x1 && y0 === y1) break;
+      const e2 = 2 * err;
+      if (e2 > -dy) { err -= dy; x0 += sx; }
+      if (e2 <  dx) { err += dx; y0 += sy; }
+    }
+  }
+  function strokeLine(x0, y0, x1, y1, v, size) {
+    bres(x0, y0, x1, y1, (x, y) => stamp(x, y, v, size));
+  }
+  function drawRect(x0, y0, x1, y1, filled, v) {
+    const xa = Math.min(x0, x1), xb = Math.max(x0, x1);
+    const ya = Math.min(y0, y1), yb = Math.max(y0, y1);
+    if (filled) { for (let y = ya; y <= yb; y++) for (let x = xa; x <= xb; x++) setPixel(x, y, v); }
+    else {
+      for (let x = xa; x <= xb; x++) { setPixel(x, ya, v); setPixel(x, yb, v); }
+      for (let y = ya; y <= yb; y++) { setPixel(xa, y, v); setPixel(xb, y, v); }
+    }
+  }
+  function drawEllipse(x0, y0, x1, y1, v) {
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    const a = Math.abs(x1 - x0) / 2, b = Math.abs(y1 - y0) / 2;
+    if (a < 0.5 || b < 0.5) { strokeLine(x0, y0, x1, y1, v, 1); return; }
+    const steps = Math.max(24, Math.ceil((a + b) * 4));
+    let px = null, py = null;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps * 2 * Math.PI;
+      const x = Math.round(cx + a * Math.cos(t));
+      const y = Math.round(cy + b * Math.sin(t));
+      if (px !== null) bres(px, py, x, y, (xx, yy) => setPixel(xx, yy, v));
+      px = x; py = y;
+    }
+  }
+  function floodFill(sx, sy, v) {
+    const target = grid[idx(sx, sy)];
+    if (target === v) return;
+    const st = [[sx, sy]];
+    while (st.length) {
+      const [x, y] = st.pop();
+      if (!inBounds(x, y) || grid[idx(x, y)] !== target) continue;
+      grid[idx(x, y)] = v;
+      st.push([x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]);
+    }
+  }
+
+  // ---- history -------------------------------------------------------------
+  function commit(snap) {
+    undoStack.push(snap);
+    if (undoStack.length > HIST_MAX) undoStack.shift();
+    redoStack.length = 0;
+    updateHistButtons();
+  }
+  function undo() {
+    if (!undoStack.length) return;
+    redoStack.push(grid.slice());
+    grid.set(undoStack.pop());
+    updateHistButtons(); render();
+  }
+  function redo() {
+    if (!redoStack.length) return;
+    undoStack.push(grid.slice());
+    grid.set(redoStack.pop());
+    updateHistButtons(); render();
+  }
+  function updateHistButtons() {
+    document.getElementById('undo').disabled = !undoStack.length;
+    document.getElementById('redo').disabled = !redoStack.length;
+  }
+
+  // ---- render --------------------------------------------------------------
+  function render() {
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.fillStyle = '#1a1a1a';
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++)
+        if (grid[idx(x, y)]) ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+    if (showGrid) {
+      ctx.strokeStyle = '#e5e0d5'; ctx.lineWidth = 1;
+      for (let x = 0; x <= W; x++) { ctx.beginPath(); ctx.moveTo(x*CELL+0.5,0); ctx.lineTo(x*CELL+0.5,c.height); ctx.stroke(); }
+      for (let y = 0; y <= H; y++) { ctx.beginPath(); ctx.moveTo(0,y*CELL+0.5); ctx.lineTo(c.width,y*CELL+0.5); ctx.stroke(); }
+    }
+    pctx.fillStyle = '#ffffff'; pctx.fillRect(0, 0, prev.width, prev.height);
+    pctx.fillStyle = '#1a1a1a';
+    for (let y = 0; y < H; y++)
+      for (let x = 0; x < W; x++)
+        if (grid[idx(x, y)]) pctx.fillRect(x * 2, y * 2, 2, 2);
+
+    let set = 0; for (let i = 0; i < grid.length; i++) if (grid[i]) set++;
+    document.getElementById('count').textContent = set + ' pixels set';
+    exportArray();
+  }
+
+  // ---- pointer -------------------------------------------------------------
+  function cellFromEvent(e) {
+    const r = c.getBoundingClientRect();
+    const x = Math.floor((e.clientX - r.left) / (r.width  / W));
+    const y = Math.floor((e.clientY - r.top ) / (r.height / H));
+    return { x: Math.max(0, Math.min(W - 1, x)), y: Math.max(0, Math.min(H - 1, y)) };
+  }
+  function onDown(e) {
+    painting = true; c.setPointerCapture(e.pointerId);
+    before = grid.slice();
+    const p = cellFromEvent(e); start = p; last = p;
+    if (tool === 'draw')  stamp(p.x, p.y, 1, brush);
+    if (tool === 'erase') stamp(p.x, p.y, 0, brush);
+    if (tool === 'fill')  floodFill(p.x, p.y, 1);
+    render();
+  }
+  function onMove(e) {
+    if (!painting) return;
+    const p = cellFromEvent(e);
+    if (tool === 'draw')  { strokeLine(last.x, last.y, p.x, p.y, 1, brush); last = p; }
+    else if (tool === 'erase') { strokeLine(last.x, last.y, p.x, p.y, 0, brush); last = p; }
+    else if (tool === 'line' || tool === 'rect' || tool === 'rectf' || tool === 'ellipse') {
+      grid.set(before);                          // restore, redraw preview
+      if (tool === 'line')    strokeLine(start.x, start.y, p.x, p.y, 1, brush);
+      if (tool === 'rect')    drawRect(start.x, start.y, p.x, p.y, false, 1);
+      if (tool === 'rectf')   drawRect(start.x, start.y, p.x, p.y, true, 1);
+      if (tool === 'ellipse') drawEllipse(start.x, start.y, p.x, p.y, 1);
+    }
+    render();
+  }
+  function onUp() {
+    if (!painting) return;
+    painting = false;
+    commit(before);                              // 'before' is the pre-op state
+  }
+  c.addEventListener('pointerdown', onDown);
+  c.addEventListener('pointermove', onMove);
+  c.addEventListener('pointerup', onUp);
+  c.addEventListener('pointercancel', onUp);
+
+  // ---- controls ------------------------------------------------------------
+  document.querySelectorAll('.tool').forEach(b => b.onclick = () => {
+    tool = b.dataset.tool;
+    document.querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === b));
+  });
+  document.querySelectorAll('.brush').forEach(b => b.onclick = () => {
+    brush = +b.dataset.size;
+    document.querySelectorAll('.brush').forEach(x => x.classList.toggle('active', x === b));
+  });
+  document.getElementById('undo').onclick = undo;
+  document.getElementById('redo').onclick = redo;
+  document.getElementById('clear').onclick  = () => { commit(grid.slice()); grid.fill(0); render(); };
+  document.getElementById('invert').onclick = () => { commit(grid.slice()); for (let i=0;i<grid.length;i++) grid[i]^=1; render(); };
+  document.getElementById('grid').onchange  = e => { showGrid = e.target.checked; render(); };
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+      e.preventDefault();
+      if (e.shiftKey) redo(); else undo();
+    }
+  });
+
+  // ---- export (unchanged format: row-major, MSB first) ---------------------
+  function exportArray() {
+    const nBytes = Math.ceil(W * H / 8);
+    const bytes = new Uint8Array(nBytes);
+    for (let bit = 0; bit < W * H; bit++)
+      if (grid[bit]) bytes[bit >> 3] |= (0x80 >> (bit & 7));
+    let s = 'const uint8_t TILE[TILE_BYTES] = {\n  ';
+    const lines = [];
+    for (let i = 0; i < nBytes; i++)
+      lines.push('0x' + bytes[i].toString(16).padStart(2, '0').toUpperCase());
+    for (let i = 0; i < lines.length; i += 12)
+      s += lines.slice(i, i + 12).join(', ') + ',\n  ';
+    s = s.replace(/,\n  $/, '\n};');
+    document.getElementById('out').value = s;
+    document.getElementById('bytes').textContent = nBytes + ' bytes  (fits one packet)';
+  }
+
+  document.getElementById('copy').onclick = () => {
+    const t = document.getElementById('out');
+    t.select(); navigator.clipboard.writeText(t.value);
+    const b = document.getElementById('copy');
+    const old = b.textContent; b.textContent = 'Copied!';
+    setTimeout(() => b.textContent = old, 1200);
+  };
+
+  render();
+</script>
+</body>
+</html>
