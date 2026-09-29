@@ -80,39 +80,72 @@ const int TILE_BYTES = (TILE_W * TILE_H + 7) / 8;   // = 176 bytes, packed 1bpp
 //
 //  MODE_TILE : paste a drawing from the HTML tool into TILE[] below. It is a
 //              64x22 grid packed to 176 bytes, row by row, MSB first.
-//  MODE_TEXT : set MESSAGE to a short string (a band fits ~21 chars x ~5 lines).
-//              The receiver draws and wraps the words.
-//
-//  Beginners wanting "random words / rotating messages" can build that logic
-//  here — e.g. keep a WORDS[] list and pick one by seq — then assign it to
-//  MESSAGE before send. That is all user territory.
+//  MODE_TEXT : sends a short sentence per wake. What that sentence is is
+//              decided by buildMessage() below -- edit it however you like.
+//              The default assembles a random one from the WORD_* lists.
+//              The receiver renders and wraps the words in its band
+//              (~21 chars x ~5 lines).
 // ---------------------------------------------------------------------------
 
 #define MODE_TILE 0
 #define MODE_TEXT 1
 
-const uint8_t MODE = MODE_TILE;          // <-- choose MODE_TILE or MODE_TEXT
+const uint8_t MODE = MODE_TEXT;          // <-- choose MODE_TILE or MODE_TEXT
 
 // --- for MODE_TEXT ---
-const char* MESSAGE = "hello from the water";
+// MESSAGE holds whatever the leaf will send (and show) this wake.
+// buildMessage() below decides what goes in it. Edit that function to
+// change what your leaf says -- a fixed line, a random sentence, a
+// counter, whatever. Everything else in the sketch just uses MESSAGE.
+
+String MESSAGE;
+
+// Word lists used by the DEFAULT buildMessage() below. Add, remove, or
+// change entries freely. Keep them short and lowercase for a consistent
+// look, and mind the receiver's band width: ~21 chars per line, ~5 lines.
+// Ignore these lists if your buildMessage() doesn't use them.
+const char* WORD_SUBJECT[] = {
+  "the leaf",  "the tide",  "the water", "the wind",
+  "moss",      "salt",      "a fish",    "the shore",
+  "the reeds", "the moon",  "the sky",   "a bird",
+};
+const char* WORD_VERB[] = {
+  "drifts",    "waits",     "sings",     "sleeps",
+  "listens",   "watches",   "breathes",  "hums",
+  "remembers", "forgets",   "carries",   "counts",
+};
+const char* WORD_ENDING[] = {
+  "in the reeds",     "with the tide",   "under the moon",
+  "against the shore","through the salt","into the dark",
+  "toward morning",   "beside me",       "for hours",
+  "without end",
+};
+
+// Called once per wake, right before we send. Put whatever you want
+// into MESSAGE. A few things you might paste in:
+//
+//   MESSAGE = "hello from the water";            // one fixed line
+//   MESSAGE = "wake #" + String(seq);            // include the wake number
+//   MESSAGE = "leaf " + String(nodeId, HEX);     // include this leaf's id
+//
+// The default below picks one word from each WORD_* list and joins them
+// with spaces. Seeding random() with `seq` means each wake gets a fresh
+// sentence, and the same wake always makes the same one (handy for
+// debugging: same number in, same words out).
+void buildMessage(uint16_t nodeId, uint32_t seq) {
+  randomSeed(seq);
+
+  int subject = random(sizeof(WORD_SUBJECT) / sizeof(WORD_SUBJECT[0]));
+  int verb    = random(sizeof(WORD_VERB)    / sizeof(WORD_VERB[0]));
+  int ending  = random(sizeof(WORD_ENDING)  / sizeof(WORD_ENDING[0]));
+
+  MESSAGE = String(WORD_SUBJECT[subject])
+          + " " + WORD_VERB[verb]
+          + " " + WORD_ENDING[ending];
+}
 
 // --- for MODE_TILE ---  (paste from the HTML drawing tool; 176 bytes)
 const uint8_t TILE[TILE_BYTES] = {
-  0x00, 0x07, 0xFF, 0xFF, 0xFF, 0xFC, 0x00, 0x00, 0x03, 0xC7, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xC0, 0x00, 0x06, 0x60, 0x00, 0xFF, 0xFF, 0xFF, 0xC1, 0xC0,
-  0x0C, 0x30, 0x00, 0x00, 0x00, 0x0F, 0xC1, 0xE0, 0x08, 0x10, 0x00, 0x78,
-  0x00, 0x00, 0x01, 0xF0, 0x08, 0x10, 0x00, 0x7F, 0x0F, 0x80, 0x01, 0xF0,
-  0x10, 0x08, 0x00, 0x0F, 0xFF, 0xF8, 0x00, 0xF0, 0x10, 0x08, 0x00, 0x03,
-  0xF8, 0xFE, 0x00, 0xF0, 0x10, 0x08, 0x00, 0x00, 0x00, 0x0E, 0x00, 0xF0,
-  0x10, 0x0B, 0xFF, 0xFF, 0xFF, 0xFF, 0xF0, 0xF0, 0x10, 0x0A, 0x00, 0x00,
-  0x00, 0x00, 0x10, 0xE0, 0x10, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x10, 0xE0,
-  0x10, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x10, 0xE0, 0x10, 0x0A, 0x00, 0x3F,
-  0xFF, 0xFE, 0x10, 0xF0, 0x10, 0x0A, 0x00, 0x3F, 0xFF, 0xFE, 0x10, 0xF0,
-  0x08, 0x12, 0x00, 0x3F, 0xFF, 0xFE, 0x10, 0x70, 0x08, 0x12, 0x00, 0x3F,
-  0xFF, 0xFE, 0x10, 0x70, 0x0C, 0x32, 0x00, 0x3F, 0xFF, 0xFE, 0x10, 0x78,
-  0x06, 0x62, 0x00, 0x00, 0x00, 0x00, 0x10, 0x78, 0x03, 0xC3, 0xFF, 0xFF,
-  0xFF, 0xFF, 0xF0, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x78,
-  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
 
 // ===========================================================================
@@ -194,9 +227,9 @@ int buildPacket(uint8_t* buf, uint16_t nodeId, uint32_t s) {
     if (plen > MAX_PAYLOAD) return -1;
     memcpy(buf + HDR_BYTES, TILE, plen);
   } else {
-    plen = strlen(MESSAGE);
+    plen = MESSAGE.length();
     if (plen > MAX_PAYLOAD) plen = MAX_PAYLOAD;    // clip over-long text
-    memcpy(buf + HDR_BYTES, MESSAGE, plen);
+    memcpy(buf + HDR_BYTES, MESSAGE.c_str(), plen);
   }
   return HDR_BYTES + plen;
 }
@@ -246,6 +279,8 @@ void setup() {
 
   seq = loadSeq() + 1;
   saveSeq(seq);
+
+  if (MODE == MODE_TEXT) buildMessage(myId, seq);
 
   delay(QUIET_MS);
 
