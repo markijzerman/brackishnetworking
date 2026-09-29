@@ -46,7 +46,7 @@ struct SeqRec;
 const uint64_t POLL_US    = 30ULL * 1000000ULL; // re-check the bank every 30 s
 const int      TX_REPEATS = 1;                  // copies sent per message
 const bool     UPDATE_OWN_SCREEN = true;        // draw our band locally too
-const int      QUIET_MS   = 400;                // settle time before transmit
+const int      QUIET_MS   = 200;                // settle time before transmit
 
 // Radio — these MUST match the receiver, or nothing is heard
 const float   FREQ  = 868.0;   // MHz  (use your region's band)
@@ -218,9 +218,10 @@ void showLocal() {
   int y0 = 0;                                  // leaf always uses band 0
   int bh = H / 6;
 
-  // Cold boot after full power loss: fast mode needs a base image in RAM, so
-  // do one normal refresh the first time, then fast mode from then on.
-  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_UNDEFINED) display.clear();
+  // Partial refresh only, even on cold boot. The panel is bistable so it still
+  // physically shows the last image, but the driver's reference RAM is garbage
+  // until the first refresh completes -- so the very first refresh after power
+  // loss may show a slightly wrong transition. From then on it's clean.
   display.fastmodeOn(false);
 
   display.setWindow(0, y0, display.width(), bh);
