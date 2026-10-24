@@ -1,0 +1,24 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+platformio.ini.lock
+
+# Arduino / build artifacts
+build/
+*.hex
+*.elf
+*.bin.d
+*.ino.*.bin
+*.ino.cpp
+*.ino.cpp.d
+
+# macOS
+.DS_Store
+._*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~

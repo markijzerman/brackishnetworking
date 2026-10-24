@@ -3,44 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>E290 Band Tile Drawer — 64×22</title>
+<title>E290 Band Tile Drawer - 64x22</title>
 <style>
-  :root { --ink:#1a1a1a; --paper:#f4f2ec; --grid:#cfc9bd; --accent:#3a6ea5; }
-  * { box-sizing: border-box; }
-  body {
-    margin:0; padding:24px; background:var(--paper); color:var(--ink);
-    font:14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  }
-  h1 { font-size:16px; margin:0 0 4px; }
-  p.sub { margin:0 0 16px; color:#6b6459; }
-  .wrap { max-width:1000px; }
-  .toolbar { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:10px 0; }
-  .sep { width:1px; align-self:stretch; background:var(--grid); margin:0 4px; }
-  .lbl { color:#6b6459; font-size:12px; margin-right:2px; }
-  button {
-    font:inherit; padding:6px 10px; border:1px solid var(--ink); background:#fff;
-    color:var(--ink); cursor:pointer; border-radius:4px;
-  }
-  button:hover { background:var(--ink); color:var(--paper); }
-  button:disabled { opacity:.35; cursor:default; }
-  button:disabled:hover { background:#fff; color:var(--ink); }
-  button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
-  .canvas-box { overflow:auto; border:1px solid var(--grid); background:#fff; padding:10px; }
-  canvas { display:block; image-rendering:pixelated; cursor:crosshair; touch-action:none; }
-  .preview-label { margin:16px 0 6px; color:#6b6459; }
-  .count { margin-left:auto; color:#6b6459; }
-  textarea {
-    width:100%; height:150px; margin-top:8px; font:12px/1.4 ui-monospace, monospace;
-    border:1px solid var(--grid); border-radius:4px; padding:10px; background:#fff; resize:vertical;
-  }
-  .hint { color:#6b6459; font-size:12px; margin-top:6px; }
-  label.chk { display:inline-flex; gap:6px; align-items:center; cursor:pointer; }
+  body { max-width: 900px; margin: 20px; font-family: sans-serif; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .toolbar { margin: 8px 0; }
+  .toolbar > * { margin-right: 4px; }
+  canvas { display: block; image-rendering: pixelated; cursor: crosshair; touch-action: none; background: #fff; border: 1px solid #999; margin: 8px 0; }
+  button.active { outline: 2px solid black; }
+  textarea { width: 100%; height: 150px; font-family: monospace; margin-top: 8px; }
+  .count, .hint, .sub, .preview-label { color: #666; font-size: 13px; }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>E290 band tile — 64 × 22</h1>
-  <p class="sub">One portrait band = 128 wide × ~49 tall. This draws the top 128 × 44 of it at 2×2 blocks. Exports the 176-byte <code>TILE[]</code> for the leaf.</p>
+  <h1>E290 band tile - 64 x 22</h1>
+  <p class="sub">One portrait band is 128 wide x ~49 tall. This draws the top 128 x 44 of it at 2x2 blocks. Exports the 176-byte <code>TILE[]</code> for the float.</p>
 
   <div class="toolbar">
     <span class="lbl">tool</span>
@@ -72,7 +50,7 @@
     <canvas id="c"></canvas>
   </div>
 
-  <div class="preview-label">Actual size on the panel (128 × 44 px drawing area):</div>
+  <div class="preview-label">Actual size on the panel (128 x 44 px drawing area):</div>
   <div class="canvas-box" style="display:inline-block">
     <canvas id="prev"></canvas>
   </div>
@@ -82,11 +60,11 @@
     <span class="count" id="bytes"></span>
   </div>
   <textarea id="out" readonly spellcheck="false"></textarea>
-  <div class="hint">Paste this over the <code>TILE[]</code> block in leaf.ino, and set <code>MODE = MODE_TILE</code>. &nbsp; Shortcuts: <code>Ctrl/Cmd+Z</code> undo, <code>Ctrl/Cmd+Shift+Z</code> redo.</div>
+  <div class="hint">Paste this over the <code>TILE[]</code> block in <code>float_tile.ino</code>. &nbsp; Shortcuts: <code>Ctrl/Cmd+Z</code> undo, <code>Ctrl/Cmd+Shift+Z</code> redo.</div>
 </div>
 
 <script>
-  const W = 64, H = 22;          // grid cells (must match the leaf)
+  const W = 64, H = 22;          // grid cells (must match the float)
   const CELL = 9;                // on-screen pixels per cell in the editor
   const grid = new Uint8Array(W * H);
 
