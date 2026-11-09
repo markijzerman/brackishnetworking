@@ -13,8 +13,8 @@
  * When the ring wraps (band 0 comes round again) the screen does one full
  * refresh to clear e-ink ghosting; other bands use fast mode.
  *
- * Duplicate packets (a float might send the same thing more than once) are
- * ignored based on (nodeId, seq).
+ * Every packet is shown, including repeats: if a float sends the same
+ * thing twice, it appears twice.
  *
  * Board: Heltec Vision Master E290
  * Libraries: RadioLib, heltec-eink-modules, Preferences
@@ -84,9 +84,7 @@ Preferences prefs;
 volatile bool rxFlag = false;
 void IRAM_ATTR onDio1() { rxFlag = true; }
 
-long total   = 0;    // total received (persisted); drives band placement
-int  lastId  = 0;
-long lastSeq = 0;
+long total = 0;    // total received (persisted); drives band placement
 
 
 // --- band rendering ---
@@ -235,11 +233,6 @@ void loop() {
               | ((long)buf[5] << 16)
               | ((long)buf[6] << 24);
   byte type   = buf[7];
-
-  // Ignore repeated packets from the same float.
-  if (nodeId == lastId && seq == lastSeq) return;
-  lastId  = nodeId;
-  lastSeq = seq;
 
   total++;
   prefs.begin("rx", false);

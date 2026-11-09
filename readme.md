@@ -1,6 +1,6 @@
 # Float and Receiver
 
-Firmware for the energy-harvesting "floats" and the USB-powered receiver that together make up the Brackish Networking installation. Each float is a small floating node that wakes when it has enough juice, sends one tiny LoRa packet to the receiver, draws its own slice of e-ink, and sleeps again. The receiver listens, dedups, and composes the incoming packets into a vertical feed on its own e-ink.
+Firmware for the energy-harvesting "floats" and the USB-powered receiver that together make up the Brackish Networking installation. Each float is a small floating node that wakes when it has enough juice, sends one tiny LoRa packet to the receiver, draws its own slice of e-ink, and sleeps again. The receiver listens and composes the incoming packets into a vertical feed on its own e-ink.
 
 Part of the [Brackish Networking](https://bit.ly/fiberworkshop) workshop series.
 
@@ -59,7 +59,7 @@ magic(1)  nodeId(2)  seq(4)  type(1)  payload(...)
                                        type 1 = text (variable)
 ```
 
-The receiver dedupes on `(nodeId, seq)` so a float can resend the same packet multiple times without the receiver refreshing its screen more than once.
+The receiver shows every packet it hears, repeats included: if a float sends the same packet twice (e.g. `TX_REPEATS` > 1), it appears twice on the receiver.
 
 ## Workshop
 
