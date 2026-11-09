@@ -8,7 +8,7 @@ Part of the [Brackish Networking](https://bit.ly/fiberworkshop) workshop series.
 
 - **Float and receiver boards:** Heltec Vision Master E290 (ESP32-S3 + SX1262 LoRa + 2.9" e-ink)
 - **Float power:** BQ25570 energy harvester → supercap bank (0.47 F / 5.5 V typical) → P-FET load switch on `V_OK`
-- **Float harvesting source:** salt water battery or wave/vibration piezo
+- **Float harvesting source:** salt water battery, or wave motion driving NEMA17 stepper motors used as generators, through rectifier diodes into the BQ25570
 - **Receiver power:** USB (always-on)
 
 ## Sketches
