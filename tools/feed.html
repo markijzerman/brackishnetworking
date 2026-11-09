@@ -1,0 +1,55 @@
+<!doctype html>
+<!--
+  Shows what the receiver gets, in big letters.
+  Plug the receiver into this computer over USB, close the Arduino Serial
+  Monitor, open this file in Chrome or Edge, click connect, pick the port.
+  It reads the "msg: ..." lines the receiver prints at 115200 baud.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<title>feed</title>
+</head>
+<body>
+<button id="connect">connect</button>
+<h1 id="latest" style="font-size: 8vw">waiting...</h1>
+<div id="older"></div>
+
+<script>
+const latest = document.getElementById("latest");
+const older  = document.getElementById("older");
+
+document.getElementById("connect").onclick = async () => {
+  if (!("serial" in navigator)) {
+    alert("This browser can't talk to serial ports. Use Chrome or Edge.");
+    return;
+  }
+  const port = await navigator.serial.requestPort();
+  await port.open({ baudRate: 115200 });
+  latest.textContent = "connected, waiting...";
+
+  const reader = port.readable.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const lines = buffer.split("\n");
+    buffer = lines.pop();                  // keep the unfinished line
+    for (const line of lines) {
+      if (!line.startsWith("msg: ")) continue;
+      const msg = line.slice(5).trim();
+      if (latest.dataset.has) {
+        const p = document.createElement("p");
+        p.style.fontSize = "3vw";
+        p.textContent = latest.textContent;
+        older.prepend(p);
+      }
+      latest.textContent = msg;
+      latest.dataset.has = "1";
+    }
+  }
+};
+</script>
+</body>
+</html>

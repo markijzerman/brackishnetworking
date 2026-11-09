@@ -247,5 +247,18 @@ void loop() {
   prefs.end();
 
   int plen = len - HDR_BYTES;
+
+  // One "msg: ..." line per message on Serial, for tools/feed.html.
+  Serial.print("msg: ");
+  if (type == TYPE_TEXT) {
+    for (int i = 0; i < plen; i++) {
+      char c = (char)buf[HDR_BYTES + i];
+      Serial.print(c == '\n' ? ' ' : c);   // keep it on one line
+    }
+    Serial.println();
+  } else {
+    Serial.println("[drawing]");
+  }
+
   showBand(type, buf + HDR_BYTES, plen, seq, rssi);
 }

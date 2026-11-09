@@ -21,14 +21,14 @@ Each folder is an Arduino sketch. Open the `.ino`, select board **Heltec Vision 
 | `float_generativepoetry/` | Each wake builds a **random short sentence** from three word lists (subject + verb + ending) and sends that. The receiver word-wraps it. |
 | `float_tile/` | Each wake sends a small **1-bit drawing** (64×22 blocks, 128×44 px on screen). Make the drawing in `tile_drawer.html` in the same folder — open in a browser, draw, click copy, paste the result over the `TILE[]` block in the sketch. |
 | `float_workshop/` | Workshop variant — in-progress / scratch. |
-| `float_voltage_logger/` | No radio. Each wake measures a **voltage up to 3.3 V** straight on GPIO17 (V_OK moves to GPIO47 — see the sketch header) and shows it big on the e-ink with a graph of the last 64 readings. For checking what the wave harvester delivers. |
-| `receiver/` | USB-powered receiver. Decodes incoming packets, cycles through 6 bands on its e-ink to form a vertical feed. |
+| `receiver/` | USB-powered receiver. Decodes incoming packets, cycles through 6 bands on its e-ink to form a vertical feed. Also prints each message as a `msg: ...` line on Serial (115200). |
 
 ### Helper sketches
 
 | folder | what it does |
 |---|---|
 | `eink_test/` | Writes one line of text to the e-ink on USB power and keeps moving it to random spots. Quick check that the screen and library work. |
+| `lora_test/` | Sends a different short text message every 10 s on USB power, in the float packet format, so it shows up on the `receiver`. Adds a "message sent #n" line to its own e-ink each time, wiping when the screen is full. Quick check that the radio link works. |
 | `speaker_test/` | Plays a short melody through a small speaker wired directly to a GPIO. No amp, no DAC — PWM via `tone()`. |
 | `wav_player/` | Plays a WAV file off the ESP32's flash through a GPIO. PWM-as-DAC. Upload the WAV via LittleFS. |
 
@@ -36,6 +36,7 @@ Each folder is an Arduino sketch. Open the `.ino`, select board **Heltec Vision 
 
 | path | what it does |
 |---|---|
+| `tools/feed.html` | Shows what the receiver gets, in big letters. Plug the receiver in over USB, close the Arduino Serial Monitor, open the file in Chrome or Edge, click connect and pick the port. |
 | `tools/tile_drawer.html` | Open in a browser; a 64×22 grid you can draw on. Click copy to get a C byte array ready to paste into `float_tile`. Also copied into `float_tile/` for convenience. |
 
 ## Quick start
