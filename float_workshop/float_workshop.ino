@@ -7,7 +7,7 @@
 #include "heltec-eink-modules.h"
 
 // ============================================================================
-// CONSTANTS - No magic numbers
+// CONSTANTS
 // ============================================================================
 #define NUM_MESSAGES 10
 #define INITIAL_DELAY_MS 500u
@@ -16,7 +16,7 @@
 #define MESSAGE_PADDING_X 3
 
 // ============================================================================
-// SETUP & VARIABLES - Low memory footprint design
+// SETUP & VARIABLES
 // ============================================================================
 EInkDisplay_VisionMasterE290 display;  // E-Ink display instance
 
@@ -40,7 +40,7 @@ unsigned long last_message_time = 0;
 unsigned long random_seed_value = 0;
 
 // ============================================================================
-// HELPER FUNCTIONS - Defensive programming with error checking
+// HELPER FUNCTIONS
 // ============================================================================
 // Returns a random message from our list
 const char* get_random_message() {
@@ -89,7 +89,7 @@ void show_local(const char* message, unsigned long timestamp) {
 }
 
 // ============================================================================
-// MAIN CODE - Non-blocking loop design
+// MAIN CODE
 // ============================================================================
 void setup() {
   // Start serial communication for debugging

@@ -28,7 +28,6 @@ Each folder is an Arduino sketch. Open the `.ino`, select board **Heltec Vision 
 | folder | what it does |
 |---|---|
 | `eink_test/` | Writes one line of text to the e-ink on USB power and keeps moving it to random spots. Quick check that the screen and library work. |
-| `lora_test/` | Sends a different short text message every 10 s on USB power, in the float packet format, so it shows up on the `receiver`. Adds a "message sent #n" line to its own e-ink each time, wiping when the screen is full. Quick check that the radio link works. |
 | `speaker_test/` | Plays a short melody through a small speaker wired directly to a GPIO. No amp, no DAC — PWM via `tone()`. |
 | `wav_player/` | Plays a WAV file off the ESP32's flash through a GPIO. PWM-as-DAC. Upload the WAV via LittleFS. |
 
