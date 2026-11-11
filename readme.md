@@ -17,7 +17,7 @@ Each folder is an Arduino sketch. Open the `.ino`, select board **Heltec Vision 
 
 | folder | what it does |
 |---|---|
-| `float_basic/` | Simplest float. Sends and shows **one fixed string** you edit at the top. |
+| `send_basic_message/` | Simplest float. Sends **one fixed string** you edit at the top **the moment it gets power**, then every 30 s (`SEND_SECONDS`) while powered. No V_OK check, no sleep, so it works the same on USB and on a harvester like a hand-cranked stepper. Energy-saving: CPU at 80 MHz, radio asleep right after sending, and the e-ink is touched **only after a successful send** — just the top band, with a fast partial refresh. |
 | `float_generativepoetry/` | Each wake builds a **random short sentence** from three word lists (subject + verb + ending) and sends that. The receiver word-wraps it. |
 | `float_tile/` | Each wake sends a small **1-bit drawing** (64×22 blocks, 128×44 px on screen). Make the drawing in `tile_drawer.html` in the same folder — open in a browser, draw, click copy, paste the result over the `TILE[]` block in the sketch. |
 | `float_workshop/` | Workshop variant — in-progress / scratch. |
