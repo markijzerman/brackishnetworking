@@ -25,6 +25,9 @@
   .age { display: inline-block; border: 1px solid #000; padding: 0.1em 0.5em; font-family: monospace; }
   #latest .age { font-size: 3vw; }
   #older .age  { font-size: 1.5vw; }
+  .from { display: inline-block; margin-left: 0.6em; font-family: monospace; }
+  #latest .from { font-size: 3vw; }
+  #older .from  { font-size: 1.5vw; }
 </style>
 </head>
 <body>
@@ -135,7 +138,11 @@ function makeEntry(m, big) {
 
   const entry = document.createElement("div");
   entry.className = "entry";
-  entry.append(content, age);
+  const from = document.createElement("span");
+  from.className = "from";
+  from.textContent = fromLabel(m);
+
+  entry.append(content, age, from);
   return entry;
 }
 
@@ -148,7 +155,7 @@ const PING_ATTACK = 0.015;                // seconds to full volume
 const PING_DECAY  = 2.5;                  // seconds to fade out
 const PING_VOLUME = 0.25;                 // 0..1
 
-const BASE_HZ = 220;                      // A3
+const BASE_HZ = 440;                      // A4: the lowest note
 const NOTES   = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];   // semitones: A major pentatonic, 2 octaves
 
 let audio = null;                         // made on the connect click: browsers only allow sound after a click
@@ -172,6 +179,10 @@ function ping(floatId) {
   osc.connect(gain).connect(audio.destination);
   osc.start(t);
   osc.stop(t + PING_ATTACK + PING_DECAY + 0.05);
+}
+
+function fromLabel(m) {
+  return m.from ? "from float " + m.from : "";
 }
 
 let current = null;
@@ -216,7 +227,15 @@ document.getElementById("connect").onclick = async () => {
       if (m) show(m);
       // "#12  from 3A7F ..." follows each message: ping in that float's note
       const from = line.trim().match(/^#\d+\s+from\s+([0-9A-Fa-f]+)/);
-      if (from) ping(parseInt(from[1], 16));
+      if (from) {
+        const id = from[1].toUpperCase();
+        if (current && !current.from) {   // belongs to the message just shown
+          current.from = id;
+          const el = latest.querySelector(".from");
+          if (el) el.textContent = fromLabel(current);
+        }
+        ping(parseInt(id, 16));
+      }
     }
   }
 };
