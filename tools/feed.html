@@ -1,32 +1,207 @@
 <!doctype html>
 <!--
-  Shows what the receiver gets, in big letters.
+  Shows what the receiver gets, big: text in big letters, drawings and
+  circles-and-lines as pictures, each with how long ago it came in.
+  (Counted from when this page saw it, so keep the page open.)
   Plug the receiver into this computer over USB, close the Arduino Serial
   Monitor, open this file in Chrome or Edge, click connect, pick the port.
-  It reads the "msg: ..." lines the receiver prints at 115200 baud.
+  It reads these lines the receiver prints at 115200 baud:
+    msg: <text>
+    tile: <hex>      a 64x22 one-bit drawing (176 bytes)
+    shapes: <hex>    circles and lines, 5 bytes each
+    #12  from 3A7F ...   which float it came from (the line after each message)
+  Every message plays a soft ping. Each float has its own note.
 -->
 <html>
 <head>
 <meta charset="utf-8">
 <title>feed</title>
+<style>
+  canvas { display: block; image-rendering: pixelated; border: 1px solid #ccc; }
+  #latest canvas { width: 80vw; }
+  #older canvas  { width: 30vw; }
+  .entry { margin: 0.5em 0 1.5em; }
+  .entry h1, .entry p { margin: 0 0 0.2em; }
+  .age { display: inline-block; border: 1px solid #000; padding: 0.1em 0.5em; font-family: monospace; }
+  #latest .age { font-size: 3vw; }
+  #older .age  { font-size: 1.5vw; }
+</style>
 </head>
 <body>
 <button id="connect">connect</button>
-<h1 id="latest" style="font-size: 8vw">waiting...</h1>
+<div id="latest"><h1 style="font-size: 8vw">waiting...</h1></div>
 <div id="older"></div>
 
 <script>
 const latest = document.getElementById("latest");
 const older  = document.getElementById("older");
 
+// Same sizes as the floats and receiver.
+const TILE_W = 64, TILE_H = 22;           // blocks; each block is 2x2 px on the e-ink
+const AREA_W = 128, AREA_H = 44;          // pixels
+const SCALE  = 4;                         // canvas pixels per e-ink pixel
+
+function hexToBytes(hex) {
+  const out = [];
+  for (let i = 0; i + 1 < hex.length; i += 2) out.push(parseInt(hex.slice(i, i + 2), 16));
+  return out;
+}
+
+function newCanvas() {
+  const c = document.createElement("canvas");
+  c.width = AREA_W * SCALE;
+  c.height = AREA_H * SCALE;
+  const ctx = c.getContext("2d");
+  ctx.fillStyle = "#fff";
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = "#000";
+  ctx.strokeStyle = "#000";
+  return [c, ctx];
+}
+
+// Each bit is one block, highest bit first, row by row.
+function drawTile(bytes) {
+  const [c, ctx] = newCanvas();
+  for (let by = 0; by < TILE_H; by++) {
+    for (let bx = 0; bx < TILE_W; bx++) {
+      const bit = by * TILE_W + bx;
+      if (bit >> 3 >= bytes.length) return c;
+      if (bytes[bit >> 3] & (0x80 >> (bit & 7))) {
+        ctx.fillRect(bx * 2 * SCALE, by * 2 * SCALE, 2 * SCALE, 2 * SCALE);
+      }
+    }
+  }
+  return c;
+}
+
+// 5 bytes per shape: op, a, b, c, d
+//   op 0 line (a,b)-(c,d), op 1 circle at (a,b) radius c, op 2 filled circle
+function drawShapes(bytes) {
+  const [c, ctx] = newCanvas();
+  ctx.lineWidth = SCALE;
+  const px = v => (v + 0.5) * SCALE;      // centre of an e-ink pixel
+  for (let i = 0; i + 5 <= bytes.length; i += 5) {
+    let [op, a, b, r, d] = bytes.slice(i, i + 5);
+    if (op === 0) {
+      a = Math.min(a, AREA_W - 1); r = Math.min(r, AREA_W - 1);
+      b = Math.min(b, AREA_H - 1); d = Math.min(d, AREA_H - 1);
+      ctx.beginPath();
+      ctx.moveTo(px(a), px(b));
+      ctx.lineTo(px(r), px(d));
+      ctx.stroke();
+    } else if (op === 1 || op === 2) {
+      if (a >= AREA_W || b >= AREA_H) continue;
+      r = Math.min(r, a, b, AREA_W - 1 - a, AREA_H - 1 - b);
+      ctx.beginPath();
+      ctx.arc(px(a), px(b), r * SCALE, 0, 2 * Math.PI);
+      if (op === 2) ctx.fill(); else ctx.stroke();
+    }
+  }
+  return c;
+}
+
+// Same wording as the receiver's screen.
+function ageLabel(time) {
+  const mins = Math.floor((Date.now() - time) / 60000);
+  if (mins < 1)  return "just now";
+  if (mins < 60) return mins + (mins === 1 ? " min ago" : " mins ago");
+  const hours = Math.floor(mins / 60);
+  if (hours < 48) return hours + (hours === 1 ? " hour ago" : " hours ago");
+  return Math.floor(hours / 24) + " days ago";
+}
+
+function updateAges() {
+  for (const el of document.querySelectorAll(".age")) {
+    el.textContent = ageLabel(Number(el.dataset.time));
+  }
+}
+setInterval(updateAges, 10000);           // labels change once a minute; check often
+
+// Turn one message into something to put on the page: the message, with
+// its "x mins ago" label underneath.
+function makeEntry(m, big) {
+  let content;
+  if      (m.kind === "tile")   content = drawTile(m.bytes);
+  else if (m.kind === "shapes") content = drawShapes(m.bytes);
+  else {
+    content = document.createElement(big ? "h1" : "p");
+    content.style.fontSize = big ? "8vw" : "3vw";
+    content.textContent = m.text;
+  }
+  const age = document.createElement("div");
+  age.className = "age";
+  age.dataset.time = m.time;
+  age.textContent = ageLabel(m.time);
+
+  const entry = document.createElement("div");
+  entry.className = "entry";
+  entry.append(content, age);
+  return entry;
+}
+
+// --- ping ---
+// A soft sine ping per message. Each float gets its own note from a
+// pentatonic scale (any two notes of it sound fine together), picked from
+// its ID, so the same float always pings the same note.
+
+const PING_ATTACK = 0.015;                // seconds to full volume
+const PING_DECAY  = 2.5;                  // seconds to fade out
+const PING_VOLUME = 0.25;                 // 0..1
+
+const BASE_HZ = 220;                      // A3
+const NOTES   = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];   // semitones: A major pentatonic, 2 octaves
+
+let audio = null;                         // made on the connect click: browsers only allow sound after a click
+
+function noteFor(floatId) {
+  const hash = Math.imul(floatId, 2654435761) >>> 0;        // spread nearby IDs over the scale
+  const semis = NOTES[hash % NOTES.length];
+  return BASE_HZ * Math.pow(2, semis / 12);
+}
+
+function ping(floatId) {
+  if (!audio) return;
+  const t = audio.currentTime;
+  const osc  = audio.createOscillator();
+  const gain = audio.createGain();
+  osc.type = "sine";
+  osc.frequency.value = noteFor(floatId);
+  gain.gain.setValueAtTime(0, t);
+  gain.gain.linearRampToValueAtTime(PING_VOLUME, t + PING_ATTACK);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + PING_ATTACK + PING_DECAY);
+  osc.connect(gain).connect(audio.destination);
+  osc.start(t);
+  osc.stop(t + PING_ATTACK + PING_DECAY + 0.05);
+}
+
+let current = null;
+
+function show(m) {
+  m.time = Date.now();                    // when it arrived (the receiver prints it right away)
+  if (current) older.prepend(makeEntry(current, false));
+  current = m;
+  latest.replaceChildren(makeEntry(m, true));
+}
+
+function parseLine(line) {
+  line = line.trim();
+  if (line.startsWith("msg: "))    return { kind: "text",   text: line.slice(5) };
+  if (line.startsWith("tile: "))   return { kind: "tile",   bytes: hexToBytes(line.slice(6)) };
+  if (line.startsWith("shapes: ")) return { kind: "shapes", bytes: hexToBytes(line.slice(8)) };
+  return null;
+}
+
 document.getElementById("connect").onclick = async () => {
   if (!("serial" in navigator)) {
     alert("This browser can't talk to serial ports. Use Chrome or Edge.");
     return;
   }
+  audio = audio || new AudioContext();
+  audio.resume();
   const port = await navigator.serial.requestPort();
   await port.open({ baudRate: 115200 });
-  latest.textContent = "connected, waiting...";
+  latest.replaceChildren(Object.assign(document.createElement("h1"),
+    { textContent: "connected, waiting...", style: "font-size: 8vw" }));
 
   const reader = port.readable.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
@@ -37,16 +212,11 @@ document.getElementById("connect").onclick = async () => {
     const lines = buffer.split("\n");
     buffer = lines.pop();                  // keep the unfinished line
     for (const line of lines) {
-      if (!line.startsWith("msg: ")) continue;
-      const msg = line.slice(5).trim();
-      if (latest.dataset.has) {
-        const p = document.createElement("p");
-        p.style.fontSize = "3vw";
-        p.textContent = latest.textContent;
-        older.prepend(p);
-      }
-      latest.textContent = msg;
-      latest.dataset.has = "1";
+      const m = parseLine(line);
+      if (m) show(m);
+      // "#12  from 3A7F ..." follows each message: ping in that float's note
+      const from = line.trim().match(/^#\d+\s+from\s+([0-9A-Fa-f]+)/);
+      if (from) ping(parseInt(from[1], 16));
     }
   }
 };

@@ -168,7 +168,7 @@ void showLocal() {
 
 
 void setup() {
-  myId = (int)(ESP.getEfuseMac() & 0xFFFF);
+  myId = (int)((ESP.getEfuseMac() >> 32) & 0xFFFF);   // last 2 bytes of the MAC: different on every board (the first bytes are the maker's, the same on all)
 
   pinMode(VOK_PIN, INPUT);
   if (digitalRead(VOK_PIN) == LOW) sleepAndPoll();

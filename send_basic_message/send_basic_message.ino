@@ -150,7 +150,7 @@ void showLocal() {
 void setup() {
   setCpuFrequencyMhz(80);        // plenty for this, uses less power than 240
   Serial.begin(115200);
-  myId = (int)(ESP.getEfuseMac() & 0xFFFF);
+  myId = (int)((ESP.getEfuseMac() >> 32) & 0xFFFF);   // last 2 bytes of the MAC: different on every board (the first bytes are the maker's, the same on all)
 
   loraSPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_NSS);
   int state = radio.begin(FREQ, BW, SF, CR, SYNC, POWER, 8, TCXO, false);
